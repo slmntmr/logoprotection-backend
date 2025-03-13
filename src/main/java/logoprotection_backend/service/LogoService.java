@@ -11,6 +11,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Service // Spring tarafından servis katmanı olarak tanımlanır
 @Slf4j // Loglama için (log.info, log.error vb.)
@@ -133,4 +136,82 @@ public class LogoService {
         }
         return data;
     }
+
+//****************************************************************************************
+
+// Kullanıcının yüklediği dosyanın hash'ini doğrular
+public boolean verifyFileHash(MultipartFile file) {
+    try {
+        log.info("Hash doğrulama başlatıldı...");
+
+        // 1️⃣ Kullanıcının yüklediği dosyanın SHA-256 hash'ini hesapla
+        String fileHash = generateSHA256HashFromMultipartFile(file);
+
+        log.info("Hesaplanan hash: {}", fileHash);
+
+        // 2️⃣ Daha önce yüklenen dosyalar arasında bu hash var mı kontrol et
+        File directory = new File(LOGO_DIR);
+        if (!directory.exists()) {
+            log.warn("uploaded-logos klasörü bulunamadı.");
+            return false; // Eğer hiç dosya yüklenmediyse, hash zaten yoktur
+        }
+
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File storedFile : files) {
+                String storedFileHash = generateSHA256Hash(storedFile);
+                if (fileHash.equals(storedFileHash)) {
+                    log.info("Dosya daha önce yüklendi ve hash eşleşti.");
+                    return true; // Eşleşme bulundu!
+                }
+            }
+        }
+
+        log.info("Dosya daha önce yüklenmemiş.");
+        return false; // Eşleşme bulunamadı!
+
+    } catch (Exception e) {
+        log.error("Hash doğrulama sırasında hata oluştu: ", e);
+        throw new RuntimeException("Hash doğrulama başarısız: " + e.getMessage());
+    }
+}
+
+// MultipartFile'in hash'ini hesaplayan metot
+private String generateSHA256HashFromMultipartFile(MultipartFile file) throws IOException, NoSuchAlgorithmException {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+    byte[] fileBytes = file.getBytes(); // MultipartFile içeriğini byte dizisine çevir
+    byte[] hashBytes = digest.digest(fileBytes);
+
+    // Hash byte dizisini hexadecimal formata dönüştür
+    StringBuilder hexString = new StringBuilder();
+    for (byte b : hashBytes) {
+        hexString.append(String.format("%02x", b));
+    }
+
+    return hexString.toString();
+}
+
+//************************************************************************************
+
+    // Daha önce yüklenen logoları listeleyen metot
+    public List<String> listUploadedLogos() {
+        File directory = new File(LOGO_DIR);
+        if (!directory.exists()) {
+            log.warn("uploaded-logos klasörü bulunamadı.");
+            return Collections.emptyList(); // Eğer klasör yoksa, boş liste döndür
+        }
+
+        File[] files = directory.listFiles();
+        List<String> fileNames = new ArrayList<>();
+
+        if (files != null) {
+            for (File file : files) {
+                fileNames.add(file.getName());
+            }
+        }
+
+        return fileNames;
+    }
+
 }
