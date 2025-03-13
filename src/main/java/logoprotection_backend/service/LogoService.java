@@ -16,8 +16,8 @@ import java.security.NoSuchAlgorithmException;
 @Slf4j // Loglama için (log.info, log.error vb.)
 public class LogoService {
 
-    // Yüklenen logoların saklanacağı klasör yolu
-    private static final String LOGO_DIR = "uploaded-logos/";
+    // 📌 Yüklenen logoların saklanacağı KESİN dizin (Geçici değil, sabit klasör)
+    private static final String LOGO_DIR = System.getProperty("user.dir") + File.separator + "uploaded-logos";
 
     // Kullanıcının yüklediği logoyu sunucuya kaydeder ve blockchain koruması sağlar
     public String uploadAndProtectLogo(MultipartFile file) {
@@ -37,8 +37,8 @@ public class LogoService {
             return fileHash;
 
         } catch (Exception e) {
-            log.error("Dosya yükleme veya koruma sırasında hata oluştu: {}", e.getMessage());
-            throw new RuntimeException("Dosya yüklenirken hata oluştu.");
+            log.error("Dosya yükleme veya koruma sırasında hata oluştu: ", e);
+            throw new RuntimeException("Dosya yüklenirken hata oluştu: " + e.getMessage());
         }
     }
 
@@ -48,13 +48,19 @@ public class LogoService {
     private File saveFile(MultipartFile file) throws IOException {
         File directory = new File(LOGO_DIR);
 
-        // Klasör mevcut değilse oluştur
+        // 📌 Eğer klasör yoksa oluştur
         if (!directory.exists()) {
-            directory.mkdirs();
+            boolean created = directory.mkdirs();
+            if (!created) {
+                throw new IOException("Klasör oluşturulamadı: " + directory.getAbsolutePath());
+            }
         }
 
-        // Logoyu belirtilen dizine kaydet
-        File destinationFile = new File(directory, file.getOriginalFilename());
+        // 📌 Dosya adını güvenli hale getir (boşlukları ve özel karakterleri kaldır)
+        String safeFileName = file.getOriginalFilename()
+                .replaceAll("[^a-zA-Z0-9\\.\\-]", "_"); // Özel karakterleri "_" ile değiştir
+
+        File destinationFile = new File(directory, safeFileName);
         file.transferTo(destinationFile);
 
         log.info("Dosya başarıyla kaydedildi: {}", destinationFile.getAbsolutePath());
@@ -69,6 +75,8 @@ public class LogoService {
         // Dosyanın tüm byte'larını oku
         byte[] fileBytes = Files.readAllBytes(file.toPath());
 
+        log.info("SHA-256 hash hesaplanıyor, dosya boyutu: {}", fileBytes.length);
+
         // Byte dizisini SHA-256 ile hash'le
         byte[] hashBytes = digest.digest(fileBytes);
 
@@ -77,6 +85,8 @@ public class LogoService {
         for (byte b : hashBytes) {
             hexString.append(String.format("%02x", b));
         }
+
+        log.info("SHA-256 hash başarıyla oluşturuldu: {}", hexString.toString());
 
         return hexString.toString();
     }
@@ -87,17 +97,20 @@ public class LogoService {
         String otsUrl = "https://a.pool.opentimestamps.org/digest";
 
         try {
-            // OpenTimestamps REST API çağrısı (hash'i gönder)
+            log.info("Blockchain'e hash gönderiliyor: {}", sha256Hash);
+
+            // OpenTimestamps REST API çağrısı
             ResponseEntity<byte[]> response = restTemplate.postForEntity(
                     otsUrl,
                     sha256Hash,
                     byte[].class
             );
 
-            // Başarılı ise yanıtı kontrol eder
+            log.info("OpenTimestamps yanıt kodu: {}", response.getStatusCode());
+
+            // Başarılı yanıt kontrolü
             if (response.getStatusCode() == HttpStatus.OK) {
                 byte[] timestampProof = response.getBody();
-                // İsteğe bağlı: timestampProof verisini daha sonra doğrulamak için saklayabilirsin
                 log.info("Blockchain üzerinde zaman damgası başarıyla oluşturuldu.");
             } else {
                 log.error("OpenTimestamps başarısız oldu. Status: {}", response.getStatusCode());
