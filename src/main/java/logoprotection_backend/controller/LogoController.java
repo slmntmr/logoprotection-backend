@@ -3,10 +3,18 @@ package logoprotection_backend.controller;
 import logoprotection_backend.service.LogoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j; // 📌 Eksik olan bu satırı ekledik
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,6 +25,34 @@ import java.util.List;
 public class LogoController {
 
     private final LogoService logoService;
+    private static final String LOGO_DIR = System.getProperty("user.dir") + File.separator + "uploaded-logos";
+
+    // 📌 Görselleri döndürmek için yeni GET endpoint
+    @GetMapping("/{fileName}")
+    @ResponseBody
+    public ResponseEntity<byte[]> getLogo(@PathVariable String fileName) {
+        try {
+            Path path = Paths.get(LOGO_DIR, fileName);
+
+            if (!Files.exists(path)) {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+
+            byte[] imageData = Files.readAllBytes(path);
+            HttpHeaders headers = new HttpHeaders();
+
+            // 📌 Dosya uzantısına göre MIME tipini belirleyelim
+            String contentType = Files.probeContentType(path);
+            if (contentType == null) {
+                contentType = "application/octet-stream"; // Varsayılan tip
+            }
+            headers.setContentType(MediaType.parseMediaType(contentType));
+
+            return new ResponseEntity<>(imageData, headers, HttpStatus.OK);
+        } catch (IOException e) {
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     // Kullanıcıdan logo yüklemek için kullanılan endpoint
     // http://localhost:8080/api/logos/upload
