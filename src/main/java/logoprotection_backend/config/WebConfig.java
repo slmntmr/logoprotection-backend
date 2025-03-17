@@ -13,7 +13,7 @@ public class WebConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**") // API yolunu belirtiyoruz.
-                        .allowedOrigins("http://localhost:3000") // Frontend adresini ekliyoruz.
+                        .allowedOrigins("https://new-logo-protection-frontend.vercel.app/") // Frontend adresini ekliyoruz.
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowCredentials(true)
                         .allowedHeaders("*"); // ✅ Header'lara da izin veriyoruz.
